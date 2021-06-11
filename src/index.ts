@@ -1,13 +1,5 @@
 import pDefer from 'p-defer';
-
-type Element = string | HTMLImageElement;
-type Params = any;
-type Output = any;
-type Handler = (data: Uint8ClampedArray, params: Params) => Output;
-
-function getImageSrc(element: Element) {
-  return typeof element === 'string' ? element : element.src;
-}
+import { Config, Format, Method, ImageSrc, Rgb } from './interface';
 
 function getImageData(src: string): Promise<Uint8ClampedArray> {
   const defer = pDefer<Uint8ClampedArray>();
@@ -26,30 +18,70 @@ function getImageData(src: string): Promise<Uint8ClampedArray> {
     defer.resolve(imageData.data);
   };
   image.onerror = () => {
-    defer.reject(Error('Fail to load image'));
+    defer.reject(Error('Fail to load image.'));
   };
 
   return defer.promise;
 }
 
-function getColors(data: Uint8ClampedArray, params: Params) {}
+function formatColor(rgb: Rgb, format: Format) {
+  if (format === 'RGB') {
+    return `rgb(${rgb.join(',')})`;
+  } else {
+    return `#${rgb.map(color => color.toString(16))}`;
+  }
+}
 
-function getAverage(data: Uint8ClampedArray, params: Params) {}
+function getMatchColors(data: Uint8ClampedArray, config: Config): string[] {
+  const gap = 4 * config.blockSize;
+  const set = new Set<string>();
 
-async function caller(handler: Handler, element: Element, params: Params): Promise<Output> {
-  const defer = pDefer<Output>();
+  for (let i = 0; i < data.length; i += gap) {
+    const color = formatColor([data[i], data[i + 1], data[i + 2]], config.format);
+    set.add(color);
+  }
+  return [...set];
+}
+
+function getAverage(data: Uint8ClampedArray, config: Config): string {
+  const gap = 4 * config.blockSize;
+  const count = data.length / gap;
+  const rgb = { r: 0, g: 0, b: 0 };
+
+  for (let i = 0; i < data.length; i += gap) {
+    rgb.r += data[i];
+    rgb.g += data[i + 1];
+    rgb.b += data[i + 2];
+  }
+
+  return formatColor(
+    [Math.round(rgb.r / count), Math.round(rgb.g / count), Math.round(rgb.b / count)],
+    config.format
+  );
+}
+
+const defaultConfig: Config = {
+  format: 'RGB',
+  blockSize: 5,
+};
+async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config: Config) {
+  const defer = pDefer<ReturnType<T>>();
   try {
-    const src = getImageSrc(element);
+    const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
     const data = await getImageData(src);
-    defer.resolve(handler(data, params));
+    const res = method(data, { ...defaultConfig, ...config });
+    defer.resolve(res);
   } catch (e) {
     defer.resolve(e);
   }
   return defer.promise;
 }
 
-const matchColors = (element: Element, params: Params) => caller(getColors, element, params);
-const avarage = (element: Element, params: Params) => caller(getAverage, element, params);
+/* get avarage color */
+export const avarage = (imageSrc: ImageSrc, config: Config) =>
+  caller(getAverage, imageSrc, config);
+/* get match colors */
+export const matchColors = (imageSrc: ImageSrc, config: Config) =>
+  caller(getMatchColors, imageSrc, config);
 
-export default matchColors;
-export { matchColors, avarage };
+export default { matchColors, avarage };
