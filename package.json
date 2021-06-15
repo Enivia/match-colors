@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.0.1",
   "license": "MIT",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -33,6 +33,13 @@
   },
   "name": "match-colors",
   "author": "Enivia",
+  "description": "Get image match colors",
+  "keywords": [
+    "colors",
+    "picture colors"
+  ],
+  "repository": "github:Enivia/match-colors",
+  "homepage": "https://github.com/Enivia/match-colors",
   "module": "dist/match-colors.esm.js",
   "size-limit": [
     {

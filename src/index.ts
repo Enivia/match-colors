@@ -53,7 +53,6 @@ function getAverage(data: Uint8ClampedArray, config: Config): string {
     rgb.g += data[i + 1];
     rgb.b += data[i + 2];
   }
-
   return formatColor(
     [Math.round(rgb.r / count), Math.round(rgb.g / count), Math.round(rgb.b / count)],
     config.format
@@ -64,7 +63,7 @@ const defaultConfig: Config = {
   format: 'RGB',
   blockSize: 5,
 };
-async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config: Config) {
+async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config?: Config) {
   const defer = pDefer<ReturnType<T>>();
   try {
     const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
@@ -78,10 +77,10 @@ async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config: C
 }
 
 /* get avarage color */
-export const avarage = (imageSrc: ImageSrc, config: Config) =>
+export const avarage = (imageSrc: ImageSrc, config?: Config) =>
   caller(getAverage, imageSrc, config);
 /* get match colors */
-export const matchColors = (imageSrc: ImageSrc, config: Config) =>
+export const matchColors = (imageSrc: ImageSrc, config?: Config) =>
   caller(getMatchColors, imageSrc, config);
 
 export default { matchColors, avarage };
