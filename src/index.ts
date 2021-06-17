@@ -1,7 +1,13 @@
 import pDefer from 'p-defer';
-import { Config, Format, Method, ImageSrc, Rgb } from './interface';
 
-function getImageData(src: string): Promise<Uint8ClampedArray> {
+type ImageSrc = string | HTMLImageElement;
+type Format = 'RGB' | 'HEX';
+type Rgb = [number, number, number];
+type Config = { format: Format; size: number };
+type MatchConfig = Config & { group: number };
+
+function getImageData(imageSrc: ImageSrc): Promise<Uint8ClampedArray> {
+  const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
   const defer = pDefer<Uint8ClampedArray>();
   const image = new Image();
   image.crossOrigin = '';
@@ -25,8 +31,8 @@ function getImageData(src: string): Promise<Uint8ClampedArray> {
   return defer.promise;
 }
 
-function mergeColor(color: number, merge: number) {
-  return Math.min(Math.round(color / merge) * merge, 255);
+function groupColor(color: number, group: number) {
+  return Math.min(Math.round(color / group) * group, 255);
 }
 
 function formatColor(rgb: Rgb, format: Format) {
@@ -37,28 +43,30 @@ function formatColor(rgb: Rgb, format: Format) {
   }
 }
 
-function getMatchColors(data: Uint8ClampedArray, config: Config): string[] {
-  const { format, merge } = config;
-  const gap = 4 * config.blockSize;
-  const set = new Set<string>();
+function getMatchColors(data: Uint8ClampedArray, config: MatchConfig): string[] {
+  const { format, group } = config;
+  const gap = 4 * config.size;
+  const counter: { [k: string]: number } = {};
 
   for (let i = 0; i < data.length; i += gap) {
     const color = formatColor(
       [
-        mergeColor(data[i], merge),
-        mergeColor(data[i + 1], merge),
-        mergeColor(data[i + 2], merge),
+        groupColor(data[i], group),
+        groupColor(data[i + 1], group),
+        groupColor(data[i + 2], group),
       ],
       format
     );
-    set.add(color);
+    counter[color] = counter[color] ? counter[color] + 1 : 1;
   }
-  return [...set];
+  return Object.entries(counter).reduce<string[]>((res, [key, num]) => {
+    if (num > 50) res.push(key);
+    return res;
+  }, []);
 }
 
 function getAverage(data: Uint8ClampedArray, config: Config): string {
-  console.log(data);
-  const gap = 4 * config.blockSize;
+  const gap = 4 * config.size;
   const count = data.length / gap;
   const rgb = { r: 0, g: 0, b: 0 };
 
@@ -73,33 +81,30 @@ function getAverage(data: Uint8ClampedArray, config: Config): string {
   );
 }
 
-const defaultConfig: Config = {
-  format: 'RGB',
-  blockSize: 5,
-  merge: 20,
-};
-async function caller<T extends Method>(
-  method: T,
-  imageSrc: ImageSrc,
-  config?: Partial<Config>
-) {
-  const defer = pDefer<ReturnType<T>>();
+const defaultConfig: Config = { format: 'RGB', size: 5 };
+/* get avarage color */
+export async function avarage(image: ImageSrc, config?: Partial<Config>) {
+  const defer = pDefer<string>();
   try {
-    const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
-    const data = await getImageData(src);
-    const res = method(data, { ...defaultConfig, ...config });
-    defer.resolve(res);
+    const data = await getImageData(image);
+    defer.resolve(getAverage(data, { ...defaultConfig, ...config }));
   } catch (e) {
     defer.resolve(e);
   }
   return defer.promise;
 }
 
-/* get avarage color */
-export const avarage = (imageSrc: ImageSrc, config?: Partial<Config>) =>
-  caller(getAverage, imageSrc, config);
+const defaultMatchConfig: MatchConfig = { ...defaultConfig, group: 50 };
 /* get match colors */
-export const matchColors = (imageSrc: ImageSrc, config?: Partial<Config>) =>
-  caller(getMatchColors, imageSrc, config);
+export async function matchColors(image: ImageSrc, config?: Partial<MatchConfig>) {
+  const defer = pDefer<string[]>();
+  try {
+    const data = await getImageData(image);
+    defer.resolve(getMatchColors(data, { ...defaultMatchConfig, ...config }));
+  } catch (e) {
+    defer.resolve(e);
+  }
+  return defer.promise;
+}
 
 export default { matchColors, avarage };
