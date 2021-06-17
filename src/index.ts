@@ -4,6 +4,7 @@ import { Config, Format, Method, ImageSrc, Rgb } from './interface';
 function getImageData(src: string): Promise<Uint8ClampedArray> {
   const defer = pDefer<Uint8ClampedArray>();
   const image = new Image();
+  image.crossOrigin = '';
   image.src = src;
 
   image.onload = () => {
@@ -24,6 +25,10 @@ function getImageData(src: string): Promise<Uint8ClampedArray> {
   return defer.promise;
 }
 
+function mergeColor(color: number, merge: number) {
+  return Math.min(Math.round(color / merge) * merge, 255);
+}
+
 function formatColor(rgb: Rgb, format: Format) {
   if (format === 'RGB') {
     return `rgb(${rgb.join(',')})`;
@@ -33,17 +38,26 @@ function formatColor(rgb: Rgb, format: Format) {
 }
 
 function getMatchColors(data: Uint8ClampedArray, config: Config): string[] {
+  const { format, merge } = config;
   const gap = 4 * config.blockSize;
   const set = new Set<string>();
 
   for (let i = 0; i < data.length; i += gap) {
-    const color = formatColor([data[i], data[i + 1], data[i + 2]], config.format);
+    const color = formatColor(
+      [
+        mergeColor(data[i], merge),
+        mergeColor(data[i + 1], merge),
+        mergeColor(data[i + 2], merge),
+      ],
+      format
+    );
     set.add(color);
   }
   return [...set];
 }
 
 function getAverage(data: Uint8ClampedArray, config: Config): string {
+  console.log(data);
   const gap = 4 * config.blockSize;
   const count = data.length / gap;
   const rgb = { r: 0, g: 0, b: 0 };
@@ -62,8 +76,13 @@ function getAverage(data: Uint8ClampedArray, config: Config): string {
 const defaultConfig: Config = {
   format: 'RGB',
   blockSize: 5,
+  merge: 20,
 };
-async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config?: Config) {
+async function caller<T extends Method>(
+  method: T,
+  imageSrc: ImageSrc,
+  config?: Partial<Config>
+) {
   const defer = pDefer<ReturnType<T>>();
   try {
     const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
@@ -77,10 +96,10 @@ async function caller<T extends Method>(method: T, imageSrc: ImageSrc, config?: 
 }
 
 /* get avarage color */
-export const avarage = (imageSrc: ImageSrc, config?: Config) =>
+export const avarage = (imageSrc: ImageSrc, config?: Partial<Config>) =>
   caller(getAverage, imageSrc, config);
 /* get match colors */
-export const matchColors = (imageSrc: ImageSrc, config?: Config) =>
+export const matchColors = (imageSrc: ImageSrc, config?: Partial<Config>) =>
   caller(getMatchColors, imageSrc, config);
 
 export default { matchColors, avarage };
