@@ -4,7 +4,7 @@ type ImageSrc = string | HTMLImageElement;
 type Format = 'RGB' | 'HEX';
 type Rgb = [number, number, number];
 type Config = { format: Format; size: number };
-type MatchConfig = Config & { group: number };
+type MatchConfig = Config & { group: number; count: number };
 
 function getImageData(imageSrc: ImageSrc): Promise<Uint8ClampedArray> {
   const src = typeof imageSrc === 'string' ? imageSrc : imageSrc.src;
@@ -44,7 +44,7 @@ function formatColor(rgb: Rgb, format: Format) {
 }
 
 function getMatchColors(data: Uint8ClampedArray, config: MatchConfig): string[] {
-  const { format, group } = config;
+  const { format, group, count } = config;
   const gap = 4 * config.size;
   const counter: { [k: string]: number } = {};
 
@@ -59,10 +59,10 @@ function getMatchColors(data: Uint8ClampedArray, config: MatchConfig): string[] 
     );
     counter[color] = counter[color] ? counter[color] + 1 : 1;
   }
-  return Object.entries(counter).reduce<string[]>((res, [key, num]) => {
-    if (num > 50) res.push(key);
-    return res;
-  }, []);
+  return Object.entries(counter)
+    .sort(([_c1, n1], [_c2, n2]) => n2 - n1)
+    .slice(0, count)
+    .map(([color]) => color);
 }
 
 function getAverage(data: Uint8ClampedArray, config: Config): string {
@@ -94,7 +94,7 @@ export async function avarage(image: ImageSrc, config?: Partial<Config>) {
   return defer.promise;
 }
 
-const defaultMatchConfig: MatchConfig = { ...defaultConfig, group: 50 };
+const defaultMatchConfig: MatchConfig = { ...defaultConfig, group: 40, count: 5 };
 /* get match colors */
 export async function matchColors(image: ImageSrc, config?: Partial<MatchConfig>) {
   const defer = pDefer<string[]>();
